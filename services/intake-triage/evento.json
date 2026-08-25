@@ -1,0 +1,4 @@
+   {
+     "body": "{\"tipo\":\"usar_medica\",\"ciudad\":\"cali\",\"ubicacion\":{\"lat\":3.4516,\"lng\":-76.532},\"descripcion\":\"Prueba desde Lambda real\",\"datos\":{},\"idempotency_key\":\"lambda-test-001\"}",
+     "requestContext": { "requestId": "lambda-test-1" }
+   }

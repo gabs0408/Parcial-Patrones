@@ -1,0 +1,15 @@
+{
+  "name": "intake-triage-service",
+  "version": "1.0.0",
+  "description": "Microservicio de recepción y triage de emergencias",
+  "type": "module",
+  "main": "src/handler.mjs",
+  "scripts": {
+    "test:local": "node test/local-test.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.622.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "ws": "^8.18.0"
+  }
+}
