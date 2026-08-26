@@ -1,0 +1,5 @@
+{
+  "pathParameters": { "ciudad": "cali" },
+  "queryStringParameters": null,
+  "requestContext": { "requestId": "test-cuenta-nueva-geo-1" }
+}
