@@ -84,3 +84,5 @@ export const handler = async (event) => {
     return respuesta(500, { error: "Error interno del servidor" });
   }
 };
+
+// pipeline CI/CD activo
