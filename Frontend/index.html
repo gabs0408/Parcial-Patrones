@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mi Mapa de Google</title>
+  <style>
+    /* El contenedor debe tener un alto explícito para mostrarse */
+    #map {
+      height: 400px;
+      width: 100%;
+    }
+
+    #reportar-ayuda {
+      margin: 12px 0;
+      padding: 10px 16px;
+      cursor: pointer;
+    }
+
+    #estado {
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <h3>Mi Primer Mapa</h3>
+  <button id="reportar-ayuda" type="button">Reportar un punto que necesita ayuda</button>
+  <p id="estado" aria-live="polite"></p>
+  <div id="map"></div>
+
+  <script>
+    let mapa;
+    let ventanaInformacion;
+    let seleccionandoAyuda = false;
+
+    const ciudadesAfectadas = [
+      { nombre: "San Jose del Palmar", departamento: "Choco", lat: 4.8967, lng: -76.2317 },
+      { nombre: "Novita", departamento: "Choco", lat: 4.9551, lng: -76.6055 },
+      { nombre: "Sipi", departamento: "Choco", lat: 4.6536, lng: -76.6464 },
+      { nombre: "Condoto", departamento: "Choco", lat: 5.0935, lng: -76.6497 },
+      { nombre: "Tado", departamento: "Choco", lat: 5.2658, lng: -76.5647 },
+      { nombre: "Istmina", departamento: "Choco", lat: 5.1605, lng: -76.6839 },
+      { nombre: "Quibdo", departamento: "Choco", lat: 5.6947, lng: -76.6611 },
+      { nombre: "Cali", departamento: "Valle del Cauca", lat: 3.4516, lng: -76.5320 },
+      { nombre: "Palmira", departamento: "Valle del Cauca", lat: 3.5394, lng: -76.3036 },
+      { nombre: "Buga", departamento: "Valle del Cauca", lat: 3.9009, lng: -76.2978 },
+      { nombre: "Tulua", departamento: "Valle del Cauca", lat: 4.0847, lng: -76.1954 },
+      { nombre: "Cartago", departamento: "Valle del Cauca", lat: 4.7464, lng: -75.9117 },
+      { nombre: "Buenaventura", departamento: "Valle del Cauca", lat: 3.8801, lng: -77.0312 },
+      { nombre: "Dagua", departamento: "Valle del Cauca", lat: 3.6569, lng: -76.6886 },
+      { nombre: "Pereira", departamento: "Risaralda", lat: 4.8143, lng: -75.6946 },
+      { nombre: "Dosquebradas", departamento: "Risaralda", lat: 4.8392, lng: -75.6673 },
+      { nombre: "Santa Rosa de Cabal", departamento: "Risaralda", lat: 4.8681, lng: -75.6214 },
+      { nombre: "La Virginia", departamento: "Risaralda", lat: 4.8997, lng: -75.8825 },
+      { nombre: "La Celia", departamento: "Risaralda", lat: 5.0025, lng: -76.0036 },
+      { nombre: "Manizales", departamento: "Caldas", lat: 5.0703, lng: -75.5138 },
+      { nombre: "Chinchina", departamento: "Caldas", lat: 4.9825, lng: -75.6036 },
+      { nombre: "Villamaria", departamento: "Caldas", lat: 5.0456, lng: -75.5147 },
+      { nombre: "Palestina", departamento: "Caldas", lat: 5.0186, lng: -75.6281 },
+      { nombre: "Armenia", departamento: "Quindio", lat: 4.5339, lng: -75.6811 },
+      { nombre: "Calarca", departamento: "Quindio", lat: 4.5295, lng: -75.6404 },
+      { nombre: "Montenegro", departamento: "Quindio", lat: 4.5664, lng: -75.7511 },
+      { nombre: "La Tebaida", departamento: "Quindio", lat: 4.4526, lng: -75.7875 },
+      { nombre: "Medellin", departamento: "Antioquia", lat: 6.2442, lng: -75.5812 },
+      { nombre: "Urrao", departamento: "Antioquia", lat: 6.3163, lng: -76.1342 },
+      { nombre: "Andes", departamento: "Antioquia", lat: 5.6569, lng: -75.8788 },
+      { nombre: "Ciudad Bolivar", departamento: "Antioquia", lat: 5.8539, lng: -76.0253 },
+      { nombre: "Jardin", departamento: "Antioquia", lat: 5.5990, lng: -75.8198 },
+    ];
+
+    function initMap() {
+      const ubicacionPredeterminada = { lat: 4.7110, lng: -74.0721 };
+
+      mapa = new google.maps.Map(document.getElementById("map"), {
+        zoom: 7,
+        center: ubicacionPredeterminada,
+      });
+      ventanaInformacion = new google.maps.InfoWindow();
+
+      const marcador = new google.maps.Marker({
+        position: ubicacionPredeterminada,
+        map: mapa,
+        title: "Ubicacion actual",
+      });
+
+      if (!navigator.geolocation) {
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (posicion) => {
+          const ubicacionActual = {
+            lat: posicion.coords.latitude,
+            lng: posicion.coords.longitude,
+          };
+
+          mapa.setCenter(ubicacionActual);
+          marcador.setPosition(ubicacionActual);
+        },
+        () => {
+          console.warn("No se pudo obtener la ubicacion actual. Se muestra Bogota.");
+        }
+      );
+
+      ciudadesAfectadas.forEach((ciudad) => {
+        const marcadorCiudad = new google.maps.Marker({
+          position: { lat: ciudad.lat, lng: ciudad.lng },
+          map: mapa,
+          title: `Ciudad afectada en 2026: ${ciudad.nombre}, ${ciudad.departamento}`,
+          label: "!",
+        });
+
+        marcadorCiudad.addListener("click", () => {
+          ventanaInformacion.setContent(
+            `<strong>${ciudad.nombre}</strong><br>` +
+            `Departamento: ${ciudad.departamento}<br>` +
+            `Estado: Afectada por el terremoto de 2026`
+          );
+          ventanaInformacion.open({ map: mapa, anchor: marcadorCiudad });
+        });
+      });
+
+      document.getElementById("reportar-ayuda").addEventListener("click", () => {
+        seleccionandoAyuda = !seleccionandoAyuda;
+        document.getElementById("estado").textContent = seleccionandoAyuda
+          ? "Haz clic en el mapa para indicar el punto que necesita ayuda."
+          : "Modo de reporte cancelado.";
+        document.getElementById("reportar-ayuda").textContent = seleccionandoAyuda
+          ? "Cancelar reporte"
+          : "Reportar un punto que necesita ayuda";
+      });
+
+      mapa.addListener("click", (evento) => {
+        if (!seleccionandoAyuda) {
+          ventanaInformacion.setContent(
+            `<strong>Lugar seleccionado</strong><br>` +
+            `Latitud: ${evento.latLng.lat().toFixed(5)}<br>` +
+            `Longitud: ${evento.latLng.lng().toFixed(5)}`
+          );
+          ventanaInformacion.setPosition(evento.latLng);
+          ventanaInformacion.open(mapa);
+          return;
+        }
+
+        const descripcion = window.prompt("Describe la ayuda que se necesita:");
+        if (!descripcion || !descripcion.trim()) {
+          return;
+        }
+
+        const marcadorAyuda = new google.maps.Marker({
+          position: evento.latLng,
+          map: mapa,
+          title: "Punto que necesita ayuda",
+          label: "A",
+        });
+
+        marcadorAyuda.addListener("click", () => {
+          ventanaInformacion.setContent(
+            `<strong>Punto que necesita ayuda</strong><br>${descripcion}`
+          );
+          ventanaInformacion.open({ map: mapa, anchor: marcadorAyuda });
+        });
+
+        document.getElementById("estado").textContent = "Punto de ayuda agregado correctamente.";
+        seleccionandoAyuda = false;
+        document.getElementById("reportar-ayuda").textContent = "Reportar un punto que necesita ayuda";
+      });
+    }
+  </script>
+
+  <!-- Cargar la API de Google Maps (Reemplaza TU_API_KEY) -->
+  <script 
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB3brzaDjDer1PyhyOMhF7rs8eW5-g-flY&callback=initMap" 
+    async 
+    defer>
+  </script>
+
+</body>
+</html>

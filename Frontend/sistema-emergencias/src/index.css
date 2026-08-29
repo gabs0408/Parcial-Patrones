@@ -1,0 +1,71 @@
+/* Importar tipografías modernas desde Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* Paleta cromática AlertaRed (Dark Theme) */
+  --bg-dark: #0b0f19;
+  --bg-card: #131826;
+  --bg-input: #1a2035;
+  --primary-orange: #ff6b2b;
+  --primary-orange-hover: #e0551c;
+  --text-white: #ffffff;
+  --text-muted: #7e8b9b;
+  --border-color: #232d42;
+
+  /* Tipografía global */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text-white);
+  background-color: var(--bg-dark);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reset básico universal */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--bg-dark);
+  color: var(--text-white);
+  overflow-x: hidden;
+}
+
+/* Encabezados */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  color: var(--text-white);
+  margin-top: 0;
+  letter-spacing: -0.02em;
+}
+
+/* Enlaces estilo AlertaRed */
+a {
+  font-weight: 600;
+  color: var(--primary-orange);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--primary-orange-hover);
+}
+
+/* Ajustes globales para Leaflet / Google Maps */
+.leaflet-container, .gm-style {
+  font-family: var(--font-sans) !important;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
