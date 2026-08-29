@@ -13,15 +13,22 @@ function App() {
   const [usuario, setUsuario] = useState(null);
   const [rol, setRol] = useState('ciudadano');
   const [ciudadSeleccionada, setCiudadSeleccionada] = useState('cali');
-  const [reportes, setReportes] = useState(() => {
-    try {
-      const guardados = JSON.parse(localStorage.getItem('reportes-emergencias') || '[]');
-      const ultimo = JSON.parse(localStorage.getItem('ultimo-reporte'));
-      return ultimo && !guardados.some((item) => item.id === ultimo.id) ? [...guardados, ultimo] : guardados;
-    } catch {
-      return [];
+  const [tema, setTema] = useState(() => localStorage.getItem('tema-emergencias') || 'oscuro');
+  const [reportes, setReportes] = useState([]);
+
+  // Aplicar clase .light al elemento raíz según el tema activo
+  useEffect(() => {
+    if (tema === 'claro') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
     }
-  });
+    localStorage.setItem('tema-emergencias', tema);
+  }, [tema]);
+
+  const toggleTema = () => {
+    setTema((prev) => (prev === 'oscuro' ? 'claro' : 'oscuro'));
+  };
 
   // Verificar sesión al cargar
   useEffect(() => {
@@ -53,22 +60,26 @@ function App() {
     return () => subscription?.unsubscribe();
   }, []);
 
-  // Cuando cambias de rol, solo el ciudadano mantiene los reportes
+  // Cargar reportes aislados por ID de usuario para ciudadanos
   useEffect(() => {
-    if (rol === 'operador') {
-      // Operador: sin reportes locales
+    if (!usuario || rol !== 'ciudadano') {
       setReportes([]);
-    } else {
-      // Ciudadano: restaura desde localStorage
-      try {
-        const guardados = JSON.parse(localStorage.getItem('reportes-emergencias') || '[]');
-        const ultimo = JSON.parse(localStorage.getItem('ultimo-reporte'));
-        setReportes(ultimo && !guardados.some((item) => item.id === ultimo.id) ? [...guardados, ultimo] : guardados);
-      } catch {
-        setReportes([]);
-      }
+      return;
     }
-  }, [rol]);
+
+    try {
+      const userReportsKey = `reportes-emergencias-${usuario.id}`;
+      const userLastReportKey = `ultimo-reporte-${usuario.id}`;
+      const guardados = JSON.parse(localStorage.getItem(userReportsKey) || '[]');
+      const ultimo = JSON.parse(localStorage.getItem(userLastReportKey));
+      const listaFinal = ultimo && !guardados.some((item) => item.id === ultimo.id)
+        ? [...guardados, ultimo]
+        : guardados;
+      setReportes(listaFinal);
+    } catch {
+      setReportes([]);
+    }
+  }, [usuario, rol]);
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -76,14 +87,17 @@ function App() {
   });
 
   const guardarReporte = (reporte) => {
-    // Solo guardar en localStorage si es ciudadano
-    if (rol === 'ciudadano') {
-      localStorage.setItem('ultimo-reporte', JSON.stringify(reporte));
-      const reportesGuardados = JSON.parse(localStorage.getItem('reportes-emergencias') || '[]');
-      localStorage.setItem('reportes-emergencias', JSON.stringify([
+    // Solo guardar en localStorage si es ciudadano y usuario registrado
+    if (rol === 'ciudadano' && usuario?.id) {
+      const userReportsKey = `reportes-emergencias-${usuario.id}`;
+      const userLastReportKey = `ultimo-reporte-${usuario.id}`;
+      localStorage.setItem(userLastReportKey, JSON.stringify(reporte));
+      const reportesGuardados = JSON.parse(localStorage.getItem(userReportsKey) || '[]');
+      const listaActualizada = [
         ...reportesGuardados.filter((item) => item.id !== reporte.id),
         reporte,
-      ]));
+      ];
+      localStorage.setItem(userReportsKey, JSON.stringify(listaActualizada));
     }
     setReportes((actuales) => [...actuales.filter((item) => item.id !== reporte.id), reporte]);
   };
@@ -95,7 +109,7 @@ function App() {
   };
 
   if (!usuario) {
-    return <LoginForm onLogin={setUsuario} />;
+    return <LoginForm onLogin={setUsuario} tema={tema} onToggleTema={toggleTema} />;
   }
 
   const perfil = usuario.user_metadata || {};
@@ -110,6 +124,14 @@ function App() {
         <div className="user-actions">
           <span>{perfil.nombre || usuario.email} · {perfil.ciudad || 'Sin ciudad'}</span>
           <span className="demo-badge">Autenticado</span>
+          <button
+            className="btn-theme-toggle"
+            type="button"
+            onClick={toggleTema}
+            title={tema === 'oscuro' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          >
+            {tema === 'oscuro' ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+          </button>
           <button className="btn-logout" type="button" onClick={handleLogout} title="Cerrar sesión">🚪 Salir</button>
           <div className="role-switch" aria-label="Cambiar vista">
             <button className={perfil.rol === 'ciudadano' ? 'active' : ''} type="button" onClick={() => setRol('ciudadano')}>Ciudadano</button>

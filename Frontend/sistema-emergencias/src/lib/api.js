@@ -21,6 +21,21 @@ export async function crearEmergencia(datosFormulario) {
 
 // GET /v1/emergencias/zona/{ciudad} (Operador)
 export async function getZonasYClusters(ciudad) {
+  if (!ciudad || ciudad === 'todas') {
+    const ciudades = ['cali', 'pereira', 'manizales', 'choco'];
+    const resultados = await Promise.all(
+      ciudades.map(async (c) => {
+        try {
+          const res = await fetch(`${API_BASE_URL}/v1/emergencias/zona/${c}`);
+          const d = await res.json();
+          return (d.zonas_aisladas || []).map((item) => ({ ...item, ciudad: c }));
+        } catch {
+          return [];
+        }
+      })
+    );
+    return { zonas_aisladas: resultados.flat() };
+  }
   const res = await fetch(`${API_BASE_URL}/v1/emergencias/zona/${ciudad}`);
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || data.error || `Error del servidor (${res.status})`);

@@ -9,7 +9,7 @@ const ciudades = [
   { value: 'choco', label: 'Choco' },
 ];
 
-export function LoginForm({ onLogin }) {
+export function LoginForm({ onLogin, tema = 'oscuro', onToggleTema }) {
   const [modo, setModo] = useState('registro');
   const [datos, setDatos] = useState({
     nombre: '',
@@ -96,7 +96,19 @@ export function LoginForm({ onLogin }) {
   return (
     <main className="login-page">
       <section className="login-intro">
-        <p className="eyebrow">Red de respuesta inmediata</p>
+        <div className="login-intro-header">
+          <p className="eyebrow">Red de respuesta inmediata</p>
+          {onToggleTema && (
+            <button
+              className="btn-theme-toggle"
+              type="button"
+              onClick={onToggleTema}
+              title={tema === 'oscuro' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            >
+              {tema === 'oscuro' ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+            </button>
+          )}
+        </div>
         <h1>Tu ciudad, más preparada.</h1>
         <p className="intro-copy">
           Ingresa tus datos para reportar una emergencia o coordinar la atención desde el centro operativo.
@@ -184,4 +196,6 @@ export function LoginForm({ onLogin }) {
 
 LoginForm.propTypes = {
   onLogin: PropTypes.func.isRequired,
+  tema: PropTypes.string,
+  onToggleTema: PropTypes.func,
 };
