@@ -1,0 +1,163 @@
+name: Deploy Backend Microservices
+
+# CI/CD: se dispara automáticamente en cada push a "dev" o "main" que
+# toque algo dentro de services/. Detecta cuál(es) de los 4
+# microservicios cambiaron y solo despliega esos — no reconstruye todo
+# el backend por un cambio en uno solo.
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - "services/**"
+
+jobs:
+  # -----------------------------------------------------------
+  # 1. Detecta qué microservicios cambiaron en este push
+  # -----------------------------------------------------------
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            intake-triage:
+              - 'services/intake-triage/**'
+            dispatch-assignment:
+              - 'services/dispatch-assignment/**'
+            geospatial-aggregation:
+              - 'services/geospatial-aggregation/**'
+            notification-broadcast:
+              - 'services/notification-broadcast/**'
+
+  # -----------------------------------------------------------
+  # 2. Build + push a ECR + despliegue Canary, uno por cada
+  #    microservicio que haya cambiado (en paralelo, vía matrix)
+  # -----------------------------------------------------------
+  build-and-deploy:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.services != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJSON(needs.detect-changes.outputs.services) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login a Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Chequeo de sintaxis (sanity check antes de construir la imagen)
+        working-directory: services/${{ matrix.service }}
+        run: |
+          npm install
+          node --check src/handler.mjs
+
+      - name: Build de la imagen Docker (sin attestations, Lambda no las soporta)
+        working-directory: services/${{ matrix.service }}
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          docker build --provenance=false --sbom=false \
+            -t "$REGISTRY/${{ matrix.service }}:${{ github.sha }}" \
+            -t "$REGISTRY/${{ matrix.service }}:latest" .
+
+      - name: Push a ECR
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          docker push "$REGISTRY/${{ matrix.service }}:${{ github.sha }}"
+          docker push "$REGISTRY/${{ matrix.service }}:latest"
+
+      - name: Actualizar código de la Lambda ($LATEST)
+        env:
+          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ matrix.service }}" \
+            --image-uri "$REGISTRY/${{ matrix.service }}:${{ github.sha }}" \
+            --region us-east-1
+          aws lambda wait function-updated \
+            --function-name "${{ matrix.service }}" \
+            --region us-east-1
+
+      - name: Publicar nueva versión
+        id: publish
+        run: |
+          VERSION=$(aws lambda publish-version \
+            --function-name "${{ matrix.service }}" \
+            --region us-east-1 \
+            --query 'Version' --output text)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Nueva versión publicada: $VERSION"
+
+      - name: Obtener versión actual del alias "prod"
+        id: current
+        run: |
+          CURRENT=$(aws lambda get-alias \
+            --function-name "${{ matrix.service }}" \
+            --name prod \
+            --region us-east-1 \
+            --query 'FunctionVersion' --output text)
+          echo "version=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "Versión actual en prod: $CURRENT"
+
+      - name: Lanzar despliegue Canary vía CodeDeploy
+        id: deploy
+        run: |
+          APPSPEC=$(cat <<EOF
+          {"version":"0.0","Resources":[{"myLambdaFunction":{"Type":"AWS::Lambda::Function","Properties":{"Name":"${{ matrix.service }}","Alias":"prod","CurrentVersion":"${{ steps.current.outputs.version }}","TargetVersion":"${{ steps.publish.outputs.version }}"}}}]}
+          EOF
+          )
+          REVISION=$(jq -n --arg content "$APPSPEC" '{revisionType:"AppSpecContent",appSpecContent:{content:$content}}')
+
+          DEPLOYMENT_ID=$(aws deploy create-deployment \
+            --application-name "${{ matrix.service }}-app" \
+            --deployment-group-name "${{ matrix.service }}-dg" \
+            --region us-east-1 \
+            --revision "$REVISION" \
+            --query 'deploymentId' --output text)
+
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "Despliegue Canary iniciado: $DEPLOYMENT_ID"
+
+      - name: Monitorear el despliegue hasta que termine
+        run: |
+          DEPLOYMENT_ID="${{ steps.deploy.outputs.deployment_id }}"
+          for i in $(seq 1 60); do
+            STATUS=$(aws deploy get-deployment \
+              --deployment-id "$DEPLOYMENT_ID" \
+              --region us-east-1 \
+              --query 'deploymentInfo.status' --output text)
+            echo "[$i] Estado: $STATUS"
+            if [ "$STATUS" = "Succeeded" ]; then
+              echo "✅ Despliegue exitoso — alias prod actualizado."
+              exit 0
+            fi
+            if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Stopped" ]; then
+              echo "❌ El despliegue se detuvo/revirtió (rollback automático)."
+              echo "El alias 'prod' debería seguir en la versión anterior, sana."
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "⏱️ Tiempo de espera agotado monitoreando el despliegue."
+          exit 1
