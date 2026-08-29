@@ -20,6 +20,49 @@ const leerImagen = (archivo) => new Promise((resolve, reject) => {
   lector.readAsDataURL(archivo);
 });
 
+// Traduce los campos del formulario (camelCase, valores de UI) al
+// contrato exacto que espera triage.mjs en el backend (snake_case,
+// tipos correctos). Sin esto, el backend nunca puede escalar la
+// prioridad porque no reconoce ni la key raíz ni los nombres internos.
+const construirDatosParaBackend = (tipo, datosCriticos) => {
+  switch (tipo) {
+    case 'usar_medica':
+      return {
+        personas_atrapadas: Number(datosCriticos.personasAtrapadasHeridas) || 0,
+        riesgo_inminente:
+          datosCriticos.riesgoInminente && datosCriticos.riesgoInminente !== 'ninguno'
+            ? [datosCriticos.riesgoInminente]
+            : [],
+      };
+
+    case 'albergue':
+      return {
+        adultos: Number(datosCriticos.adultos) || 0,
+        ninos: Number(datosCriticos.ninos) || 0,
+        tercera_edad: Number(datosCriticos.terceraEdad) || 0,
+        requiere_accesibilidad: Boolean(datosCriticos.accesibilidad),
+        vivienda_habitable: datosCriticos.habitabilidad !== 'inhabitable',
+        // riesgo_vital: no hay campo en la UI todavía para capturarlo;
+        // si se agrega un checkbox/select más adelante, mapearlo aquí.
+      };
+
+    case 'suministros':
+      return {
+        categoria: datosCriticos.categoriaInsumo,
+      };
+
+    case 'danos_estructurales':
+      return {
+        tipo_edificacion: datosCriticos.tipoEdificacion,
+        nivel_agrietamiento: datosCriticos.nivelDanos,
+        riesgo_colapso_via: datosCriticos.riesgoColapsoVias === 'si',
+      };
+
+    default:
+      return {};
+  }
+};
+
 export function EmergencyForm({ isMapsLoaded, onReportCreated }) {
   const [tipo, setTipo] = useState('usar_medica');
   const [ciudad, setCiudad] = useState('cali');
@@ -69,16 +112,13 @@ export function EmergencyForm({ isMapsLoaded, onReportCreated }) {
       const evidenciaDataUrl = await leerImagen(datosCriticos.evidenciaFotografica);
       const res = await crearEmergencia({
         tipo,
-        prioridad: prioridades[tipo],
-        ciudad,
-        direccion,
-        ubicacion: { lat: ubicacion.lat(), lng: ubicacion.lng() },
-        descripcion,
-        datos_criticos: {
-          ...datosCriticos,
-          evidenciaFotografica: datosCriticos.evidenciaFotografica?.name || null,
-        },
-      });
+       // "prioridad" ya NO se manda: el backend la calcula, nunca el cliente.
+         ciudad,
+         direccion,
+         ubicacion: { lat: ubicacion.lat(), lng: ubicacion.lng() },
+         descripcion,
+          datos: construirDatosParaBackend(tipo, datosCriticos),
+});
       alert('Emergencia reportada exitosamente con ID: ' + res.id);
       onReportCreated({
         id: res.id,
