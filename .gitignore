@@ -7,3 +7,5 @@ secret.json
 **/secret.json
 .next/
 .vercel/
+.vercel
+.env*
